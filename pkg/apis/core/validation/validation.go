@@ -355,6 +355,7 @@ func ValidateVolumes(volumes []core.Volume, podMeta *metav1.ObjectMeta, fldPath 
 	allErrs := field.ErrorList{}
 
 	allNames := sets.String{}
+	allPVCs := sets.String{}
 	allCreatedPVCs := sets.String{}
 	// Determine which PVCs will be created for this pod. We need
 	// the exact name of the pod for this. Without it, this sanity
@@ -384,6 +385,14 @@ func ValidateVolumes(volumes []core.Volume, podMeta *metav1.ObjectMeta, fldPath 
 			vols[vol.Name] = vol.VolumeSource
 		} else {
 			allErrs = append(allErrs, el...)
+		}
+		// Different volumes should not reference duplicate PVCs since kubelet can not recognize that.
+		if vol.PersistentVolumeClaim != nil {
+			if allPVCs.Has(vol.PersistentVolumeClaim.ClaimName) {
+				allErrs = append(allErrs, field.Duplicate(idxPath.Child("persistentVolumeClaim").Child("claimName"), vol.PersistentVolumeClaim.ClaimName))
+			} else {
+				allPVCs.Insert(vol.PersistentVolumeClaim.ClaimName)
+			}
 		}
 		// A PersistentVolumeClaimSource should not reference a created PVC. That doesn't
 		// make sense.
